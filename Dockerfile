@@ -13,6 +13,9 @@ RUN npm install
 # Copy the rest of the application code to the working directory
 COPY . .
 
+#create downloads directory
+RUN mkdir -p downloads
+
 # Expose the port on which your Node.js app will run
 EXPOSE 8080
 
