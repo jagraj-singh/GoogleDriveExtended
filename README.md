@@ -26,7 +26,7 @@ Before getting started, make sure you have the following installed on your machi
    REDIS_HOST=redis
    ```
 
-3. Obtain your service accounts crentials and create a serviceAccount.json file
+3. Obtain your service accounts crentials and create a serviceAccountKey.json file
    (https://www.labnol.org/google-api-service-account-220404)
 
 4. Build and run the Docker containers using Docker Compose:

@@ -5,27 +5,43 @@ import { readFile } from "fs/promises"
 import path from "path"
 import { ArrayWithEvent } from "../../helper/buffer.js" //custom buffer array to help with upload of chunks in series
 import { CacheProviders } from "../../cache/cache-factory.js"
+import { WinstonLogger } from "../../logger/winston.js"
 
 const baseUrl = "https://www.googleapis.com/drive/v3/files" //base url for getting drive files
 const chunkSize = 10 * 1024 * 1024 //10MB chunk size
+const logger = WinstonLogger.getLogger()
 
 /*
 Method : getAccessToken
 Description : To generate access token given a service account
  */
 async function getAccessToken() {
-  const serviceAccountKey = JSON.parse(
-    await readFile("./serviceAccountKey.json", "utf-8")
-  )
-  const { client_email, private_key } = serviceAccountKey
-  const jwtClient = new google.auth.JWT(
-    client_email,
-    null,
-    private_key,
-    ["https://www.googleapis.com/auth/drive"],
-    null
-  )
-  const token = await jwtClient.authorize()
+  let serviceAccountKey
+  try {
+    serviceAccountKey = JSON.parse(
+      await readFile("./serviceAccountKey.json", "utf-8")
+    )
+  } catch (error) {
+    if (error.code === "ENOENT") logger.error("No serviceAccountKey.json file")
+    throw error
+  }
+
+  let token
+  try {
+    const { client_email, private_key } = serviceAccountKey
+    const jwtClient = new google.auth.JWT(
+      client_email,
+      null,
+      private_key,
+      ["https://www.googleapis.com/auth/drive"],
+      null
+    )
+    token = await jwtClient.authorize()
+    logger.debug("Token Generated")
+  } catch (error) {
+    logger.error(`Error generating token  ${error.message}`)
+    throw error
+  }
   return token.access_token
 }
 
@@ -36,17 +52,28 @@ Input :
   fileId : string
  */
 const getFileInfo = async (fileId) => {
-  const response = await axios({
-    method: "GET",
-    url: `${baseUrl}/${fileId}`,
-    params: {
-      fields: "name,mimeType,size",
-    },
-    headers: {
-      Authorization: `Bearer ${await getAccessToken()}`,
-    },
-  })
-  return response.data
+  try {
+    const response = await axios({
+      method: "GET",
+      url: `${baseUrl}/${fileId}`,
+      params: {
+        fields: "name,mimeType,size",
+      },
+      headers: {
+        Authorization: `Bearer ${await getAccessToken()}`,
+      },
+    })
+    logger.info(`File Info Retrieved for fileId ${fileId}`)
+    logger.debug(
+      `File information for fileId ${fileId} : ${JSON.stringify(response.data)}`
+    )
+    return response.data
+  } catch (error) {
+    logger.error(
+      `Error retriving file info for file ${fileId} : ${error.message}`
+    )
+    throw error
+  }
 }
 
 /*
@@ -60,7 +87,7 @@ const downloadAndUploadFile = async (fileId) => {
   try {
     fileInfo = await getFileInfo(fileId) //get information about file
   } catch (error) {
-    return { error }
+    throw error
   }
   const redisClient = CacheProviders.Redis()
   const currentTimestamp = Date.now()
@@ -72,6 +99,10 @@ const downloadAndUploadFile = async (fileId) => {
   await redisClient.set(fileDownloadProgressKey, 0)
   await redisClient.set(fileUploadProgressKey, 0)
   await redisClient.set(fileTotalSizeKey, Number(fileInfo.size))
+
+  logger.debug(
+    `Keys for tracking fileDownloadProgressKey: ${fileDownloadProgressKey} fileUploadProgressKey:${fileUploadProgressKey} fileTotalSizeKey:${fileTotalSizeKey}`
+  )
 
   //parsing file name for getting name and extension
   const fileNameInfo = path.parse(fileInfo.name)
@@ -91,10 +122,17 @@ const downloadAndUploadFile = async (fileId) => {
 
     //if success in getting stream
     if (status == 200) {
-      //geting resumable upload link
-      const resumableUploadUrl = await getUploadSessionUri(
-        `${fileNameInfo.name}-${currentTimestamp}-${fileNameInfo.ext}`
-      )
+      logger.debug("Stream recieved successfully to start writing")
+
+      let resumableUploadUrl
+      try {
+        //geting resumable upload link
+        resumableUploadUrl = await getUploadSessionUri(
+          `${fileNameInfo.name}-${currentTimestamp}-${fileNameInfo.ext}`
+        )
+      } catch (error) {
+        throw error
+      }
       //creating output stream for writing file
       const destWriteStream = await fs.createWriteStream(outputPath)
 
@@ -172,11 +210,11 @@ const downloadAndUploadFile = async (fileId) => {
           }
         }
       })
+      //returning requestId which will be used by get status to check progress
+      return `${fileId}-${currentTimestamp}`
     }
-    //returning requestId which will be used by get status to check progress
-    return `${fileId}-${currentTimestamp}`
   } catch (error) {
-    return { error }
+    throw error
   }
 }
 
@@ -211,16 +249,22 @@ Input :
   parents : Array
  */
 const getUploadSessionUri = async (fileName) => {
-  const response = await axios({
-    url: `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable`,
-    method: "POST",
-    data: { name: fileName, parents: ["1swy2lHZ5h4tlLhScqp43Y_yDoa4DSBvz"] },
-    headers: {
-      Authorization: `Bearer ${await getAccessToken()}`,
-      "Content-Type": "application/json; charset=UTF-8",
-    },
-  })
-  return response.headers.location
+  try {
+    const response = await axios({
+      url: `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable`,
+      method: "POST",
+      data: { name: fileName, parents: [process.env.PARENTID] },
+      headers: {
+        Authorization: `Bearer ${await getAccessToken()}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+    })
+    logger.debug(`Retrieved resumable url with filename ${fileName}`)
+    return response.headers.location
+  } catch (error) {
+    logger.error(`error retrieving resumable url ${error.message}`)
+    throw error
+  }
 }
 
 export default {

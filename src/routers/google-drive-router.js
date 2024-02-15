@@ -1,3 +1,4 @@
+import axios from "axios"
 import { Router } from "express"
 import bodyParser from "body-parser"
 import { ServiceProviders } from "../services/service-factory.js"
@@ -14,10 +15,14 @@ router.post("/v1/download-and-copy", async (req, res) => {
     return res.status(400).json({ error: "fileId should be of type string" })
   }
   const service = ServiceProviders.Google_Drive
-  const resp = await service.downloadAndUploadFile(fileId)
-  if (resp.error) {
-    res.status(resp.error.response.status).json(resp.error.message)
-  } else res.json({ requestId: resp })
+  try {
+    const resp = await service.downloadAndUploadFile(fileId)
+    res.json({ requestId: resp })
+  } catch (error) {
+    if (axios.isAxiosError(error))
+      res.status(error.response.status).json(error.message)
+    else res.status(400).json(error.message)
+  }
 })
 
 router.get("/v1/status", async (req, res) => {
