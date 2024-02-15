@@ -1,0 +1,100 @@
+openapi: 3.0.0
+info:
+  title: Google Drive Service API
+  description: API for downloading and copying files from Google Drive
+  version: 1.0.0
+
+paths:
+  /v1/download-and-copy:
+    post:
+      summary: Download and Copy File
+      description: |
+        Downloads and copies a file from Google Drive.
+      requestBody:
+        description: File ID to download and copy
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileId:
+                  type: string
+                  example: "your-file-id"
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                    description: ID of the request
+        '4xx':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Invalid file ID"
+            example:
+              error: "Invalid file ID"
+    get:
+      summary: Get Download Status
+      description: |
+        Get the download status of a file from Google Drive.
+      parameters:
+        - name: requestId
+          in: query
+          description: ID of the download request
+          required: true
+          schema:
+            type: string
+            example: "your-request-id"
+        - name: operation
+          in: query
+          description: Type of operation
+          required: true
+          schema:
+            type: string
+            enum: ["download", "upload"]
+            example: "download"
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  percentage:
+                    type: integer
+                    description: Download percentage
+        '4xx':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Invalid request ID"
+            example:
+              error: "Invalid request ID"
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
