@@ -149,7 +149,7 @@ const downloadAndUploadFile = async (fileId) => {
         bufferUploadData = Buffer.concat([bufferUploadData, dataAvailable])
         //increase the download progress key
         redisClient.incrby(fileDownloadProgressKey, dataAvailable.length)
-
+        logger.debug(`Updating download progress for fileID : ${fileId}`)
         //forming chunks of fixed size
         while (bufferUploadData.length > chunkSize) {
           const endByte = Math.min(chunkSize, bufferUploadData.length)
@@ -171,6 +171,7 @@ const downloadAndUploadFile = async (fileId) => {
         redisClient.del(fileDownloadProgressKey)
         destWriteStream.end()
         chunksBuffer.addElement(bufferUploadData)
+        logger.info(`Finished downloading for fileID : ${fileId}`)
       })
 
       readStream.on("error", async (error) => {
@@ -204,9 +205,11 @@ const downloadAndUploadFile = async (fileId) => {
               fileUploadProgressKey,
               currentElement.length
             )
+            logger.debug(`Updating upload progress for fileID : ${fileId}`)
           } else {
             redisClient.del(fileUploadProgressKey)
             uploadingData = false
+            logger.info(`Finished uploading for fileID : ${fileId}`)
           }
         }
       })

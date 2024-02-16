@@ -24,6 +24,8 @@ Before getting started, make sure you have the following installed on your machi
    PORT=8080
    REDIS_PORT=6379
    REDIS_HOST=redis
+   LOG_LEVEL=debug
+   PARENTID=xxxxx [parent folder id where file needs to be copied]
    ```
 
 3. Obtain your service accounts crentials and create a serviceAccountKey.json file
